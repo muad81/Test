@@ -1,0 +1,572 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"factoryName": {
+			"type": "string",
+			"metadata": "Data Factory Name"
+		},
+		"LocalStorageCargoLux": {
+			"type": "string"
+		},
+		"AzureBlobStorage1": {
+			"type": "string"
+		},
+		"CargoLuxODS": {
+			"type": "string"
+		},
+		"CargoLuxDWH": {
+			"type": "string"
+		}
+	},
+	"variables": {
+		"factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('factoryName'), '/Airport')]",
+			"type": "Microsoft.DataFactory/factories/pipelines",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"activities": [
+					{
+						"name": "Copy Airport to Blob",
+						"type": "Copy",
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"typeProperties": {
+							"source": {
+								"type": "DelimitedTextSource",
+								"storeSettings": {
+									"type": "FileServerReadSetting",
+									"recursive": false,
+									"wildcardFileName": "Airports_*.csv",
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "DelimitedTextReadSetting"
+								}
+							},
+							"sink": {
+								"type": "DelimitedTextSink",
+								"storeSettings": {
+									"type": "AzureBlobStorageWriteSetting"
+								},
+								"formatSettings": {
+									"type": "DelimitedTextWriteSetting",
+									"quoteAllText": true,
+									"fileExtension": ".txt"
+								}
+							},
+							"enableStaging": false,
+							"enableSkipIncompatibleRow": true,
+							"translator": {
+								"type": "TabularTranslator",
+								"mappings": [
+									{
+										"source": {
+											"name": "airport_id",
+											"type": "String"
+										},
+										"sink": {
+											"name": "airport_id",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "city",
+											"type": "String"
+										},
+										"sink": {
+											"name": "city",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "state",
+											"type": "String"
+										},
+										"sink": {
+											"name": "state",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "name",
+											"type": "String"
+										},
+										"sink": {
+											"name": "name",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "city_lon",
+											"type": "String"
+										},
+										"sink": {
+											"name": "city_lon",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "city_lat",
+											"type": "String"
+										},
+										"sink": {
+											"name": "city_lat",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "ariport_long",
+											"type": "String"
+										},
+										"sink": {
+											"name": "ariport_long",
+											"type": "String"
+										}
+									},
+									{
+										"source": {
+											"name": "ariport_lat",
+											"type": "String"
+										},
+										"sink": {
+											"name": "ariport_lat",
+											"type": "String"
+										}
+									}
+								]
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "AirportLocal",
+								"type": "DatasetReference"
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "AirportBlob",
+								"type": "DatasetReference"
+							}
+						]
+					},
+					{
+						"name": "AirportToODS",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "Copy Airport to Blob",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "AirportToODS",
+								"type": "DataFlowReference"
+							}
+						}
+					},
+					{
+						"name": "AirportToDWH",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "AirportToODS",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "AirportToDWH",
+								"type": "DataFlowReference"
+							}
+						}
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/AirportLocal')]",
+				"[concat(variables('factoryId'), '/datasets/AirportBlob')]",
+				"[concat(variables('factoryId'), '/dataflows/AirportToODS')]",
+				"[concat(variables('factoryId'), '/dataflows/AirportToDWH')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirportLocal')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "[parameters('LocalStorageCargoLux')]",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "AirportSources"
+				},
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "FileServerLocation",
+						"fileName": "AirportsTemplate.csv",
+						"folderPath": "DEV/Dimensions"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "Id",
+						"type": "String"
+					},
+					{
+						"name": "airport_id",
+						"type": "String"
+					},
+					{
+						"name": "city",
+						"type": "String"
+					},
+					{
+						"name": "state",
+						"type": "String"
+					},
+					{
+						"name": "name",
+						"type": "String"
+					},
+					{
+						"name": "city_lon",
+						"type": "String"
+					},
+					{
+						"name": "city_lat",
+						"type": "String"
+					},
+					{
+						"name": "ariport_long",
+						"type": "String"
+					},
+					{
+						"name": "ariport_lat",
+						"type": "String"
+					}
+				]
+			}
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirportBlob')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "[parameters('AzureBlobStorage1')]",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "AirportSources"
+				},
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobStorageLocation",
+						"folderPath": "New",
+						"container": "demo"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "Id",
+						"type": "String"
+					},
+					{
+						"name": "airport_id",
+						"type": "String"
+					},
+					{
+						"name": "city",
+						"type": "String"
+					},
+					{
+						"name": "state",
+						"type": "String"
+					},
+					{
+						"name": "name",
+						"type": "String"
+					},
+					{
+						"name": "city_lon",
+						"type": "String"
+					},
+					{
+						"name": "city_lat",
+						"type": "String"
+					},
+					{
+						"name": "ariport_long",
+						"type": "String"
+					},
+					{
+						"name": "ariport_lat",
+						"type": "String"
+					}
+				]
+			}
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirportToODS')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "AirportBlob",
+								"type": "DatasetReference"
+							},
+							"name": "AirportBlob",
+							"script": "source(output(\n\t\tId as string,\n\t\tairport_id as string,\n\t\tcity as string,\n\t\tstate as string,\n\t\tname as string,\n\t\tcity_lon as string,\n\t\tcity_lat as string,\n\t\tariport_long as string,\n\t\tariport_lat as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tmoveFiles: ['/New','/Old'],\n\trowUrlColumn: 'FileName') ~> AirportBlob"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "AirportODS",
+								"type": "DatasetReference"
+							},
+							"name": "AirportODS",
+							"script": "AirportBlob sink(input(\n\t\tId as string,\n\t\tairport_id as string,\n\t\tcity as string,\n\t\tstate as string,\n\t\tname as string,\n\t\tcity_lon as string,\n\t\tcity_lat as string,\n\t\tariport_long as string,\n\t\tariport_lat as string,\n\t\tFileName as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'table',\n\tdeletable:false,\n\tinsertable:true,\n\tupdateable:false,\n\tupsertable:false,\n\trecreate:true) ~> AirportODS"
+						}
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/AirportBlob')]",
+				"[concat(variables('factoryId'), '/datasets/AirportODS')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirportToDWH')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "AirportODS",
+								"type": "DatasetReference"
+							},
+							"name": "AirportODS",
+							"script": "source(output(\n\t\tId as string,\n\t\tairport_id as string,\n\t\tcity as string,\n\t\tstate as string,\n\t\tname as string,\n\t\tcity_lon as string,\n\t\tcity_lat as string,\n\t\tariport_long as string,\n\t\tariport_lat as string,\n\t\tFileName as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'table') ~> AirportODS"
+						},
+						{
+							"dataset": {
+								"referenceName": "AirportDWH",
+								"type": "DatasetReference"
+							},
+							"name": "AirportDWHLookup",
+							"script": "source(output(\n\t\tAirport_Id as integer,\n\t\tCity as string,\n\t\tStateCd as string,\n\t\tAirport as string,\n\t\tCityLongitude as double,\n\t\tCityLatitude as double,\n\t\tAirportLongitude as double,\n\t\tAirportLatitude as double,\n\t\tCreatedBy as integer,\n\t\tModifiedBy as integer\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'table') ~> AirportDWHLookup"
+						}
+					],
+					"sinks": [
+						{
+							"dataset": {
+								"referenceName": "AirportDWH",
+								"type": "DatasetReference"
+							},
+							"name": "AirportDwh",
+							"script": "FilterUpsertRows sink(input(\n\t\tAirport_Id as integer,\n\t\tCity as string,\n\t\tStateCd as string,\n\t\tAirport as string,\n\t\tCityLongitude as double,\n\t\tCityLatitude as double,\n\t\tAirportLongitude as double,\n\t\tAirportLatitude as double,\n\t\tCreatedBy as integer,\n\t\tModifiedBy as integer\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'table',\n\tdeletable:false,\n\tinsertable:false,\n\tupdateable:false,\n\tupsertable:true,\n\tkeys:['TransformToNumber@airport_id'],\n\tmapColumn(\n\t\tAirport_Id = TransformToNumber@airport_id,\n\t\tCity = AirportODS@city,\n\t\tStateCd = state,\n\t\tAirport = name,\n\t\tCityLongitude = city_lon,\n\t\tCityLatitude = city_lat,\n\t\tAirportLongitude = ariport_long,\n\t\tAirportLatitude = ariport_lat\n\t)) ~> AirportDwh"
+						}
+					],
+					"transformations": [
+						{
+							"name": "TransformToNumber",
+							"script": "AirportODS derive(airport_id = toInteger(airport_id),\n\t\teach(match(endsWith(name,'_lat') || endsWith(name, '_long') || endsWith(name, 'lon')), $$ = toFloat($$))) ~> TransformToNumber"
+						},
+						{
+							"name": "FilterUpsertRows",
+							"script": "Join1 alterRow(upsertIf(state!=StateCd || name!=Airport || city_lon!=CityLongitude || city_lat!=CityLatitude \r\n|| ariport_long!= AirportLongitude || ariport_lat!=AirportLatitude || AirportODS@city!=AirportDWHLookup@City)) ~> FilterUpsertRows"
+						},
+						{
+							"name": "Join1",
+							"script": "TransformToNumber, AirportDWHLookup join(TransformToNumber@airport_id == AirportDWHLookup@Airport_Id,\n\tjoinType:'left',\n\tbroadcast: 'none')~> Join1"
+						}
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/AirportODS')]",
+				"[concat(variables('factoryId'), '/datasets/AirportDWH')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirportODS')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "[parameters('CargoLuxODS')]",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "AirportSources"
+				},
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "Id",
+						"type": "nvarchar"
+					},
+					{
+						"name": "airport_id",
+						"type": "nvarchar"
+					},
+					{
+						"name": "city",
+						"type": "nvarchar"
+					},
+					{
+						"name": "state",
+						"type": "nvarchar"
+					},
+					{
+						"name": "name",
+						"type": "nvarchar"
+					},
+					{
+						"name": "city_lon",
+						"type": "nvarchar"
+					},
+					{
+						"name": "city_lat",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ariport_long",
+						"type": "nvarchar"
+					},
+					{
+						"name": "ariport_lat",
+						"type": "nvarchar"
+					},
+					{
+						"name": "FileName",
+						"type": "nvarchar"
+					}
+				],
+				"typeProperties": {
+					"tableName": "[[ext].[Airports_Geocoded]"
+				}
+			}
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/AirportDWH')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "[parameters('CargoLuxDWH')]",
+					"type": "LinkedServiceReference"
+				},
+				"folder": {
+					"name": "AirportSources"
+				},
+				"type": "AzureSqlTable",
+				"schema": [
+					{
+						"name": "Airport_Id",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "City",
+						"type": "nvarchar"
+					},
+					{
+						"name": "StateCd",
+						"type": "nvarchar"
+					},
+					{
+						"name": "Airport",
+						"type": "nvarchar"
+					},
+					{
+						"name": "CityLongitude",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "CityLatitude",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "AirportLongitude",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "AirportLatitude",
+						"type": "float",
+						"precision": 15
+					},
+					{
+						"name": "CreatedBy",
+						"type": "int",
+						"precision": 10
+					},
+					{
+						"name": "ModifiedBy",
+						"type": "int",
+						"precision": 10
+					}
+				],
+				"typeProperties": {
+					"tableName": "[[dwh].[DimAirport]"
+				}
+			}
+		}
+	]
+}
